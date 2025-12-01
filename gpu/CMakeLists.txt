@@ -1,8 +1,7 @@
-
 file(GLOB GPU_SRC
     bruteForceKNN.cu
     octree.cu
-    test_gpu_kernels.cpp
+    test_cuda.cu
 )
 
 add_executable(gpu_tests ${GPU_SRC})
