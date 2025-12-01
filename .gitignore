@@ -1,0 +1,17 @@
+*.class
+/dist/
+/build/
+*.o
+*.exe
+*.out
+gpu/build/
+
+# Common additions
+*.so
+*.dylib
+*.dll
+.vscode/
+.idea/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
