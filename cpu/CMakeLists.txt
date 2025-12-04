@@ -9,4 +9,6 @@ add_executable(cpu_tests ${CPU_SRC})
 target_include_directories(cpu_tests PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 add_executable(cpu_bruteforce_knn bruteForceKNN.cpp)
 target_include_directories(cpu_bruteforce_knn PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+add_executable(cpu_octree_tests cpu_octree_tests.cpp octree.cpp)
+target_include_directories(cpu_octree_tests PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
