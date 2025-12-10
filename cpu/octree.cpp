@@ -1,8 +1,9 @@
 #include "octree.hpp"
 #include <limits>
 #include <cassert>
-
-// helper: compute bbox of points[indices[start..start+count))
+#include <iostream>
+#include <random>
+// ---- helper: compute bbox of points[indices[start..start+count)) ----
 static void computeBoundingBox(const std::vector<Point3D>& pts,
                                const std::vector<int>& indices,
                                int start, int count,
@@ -25,31 +26,7 @@ static void computeBoundingBox(const std::vector<Point3D>& pts,
     }
 }
 
-
-
-// helper: classify a point into one of 8 octants around (cx, cy, cz)
-//the octant indez is encoded in three bits :
-/*
-bit 0 (1) : x>= cx(positive x side)
-bit 1 (2) : y>= cy(positive y side)
-bit 2 (4) : z>= cz(positive z side)
-
-returned value is in [0..7] examples:
-( x < cx, y < cy, z < cz) => 0
-( x >=cx, y < cy, z < cz) => 1
-( x < cx, y >=cy, z < cz) => 2
-( x >=cx, y >=cy, z < cz) => 3
-( x < cx, y < cy, z >=cz) => 4
-( x >=cx, y < cy, z >=cz) => 5
-( x < cx, y >=cy, z >=cz) => 6
-( x >=cx, y >=cy, z >=cz) => 7
- notes:
- Tie-breaking: points exactly on a splitting plane (p.x == cx, etc.)
-//   are placed on the ">= center" side. This is deliberate and consistent
-//   with how points are binned later; change to '>' or add epsilon if a
-//   different tie policy is required.
-// - Constant time, no side-effects.
-*/
+// ---- helper: classify a point into one of 8 octants around (cx, cy, cz) ----
 static int classifyOctant(const Point3D& p, float cx, float cy, float cz) {
     int oct = 0;
     if (p.x >= cx) oct |= 1;
@@ -58,6 +35,106 @@ static int classifyOctant(const Point3D& p, float cx, float cy, float cz) {
     return oct;  // 0..7
 }
 
+// ---- internal recursive builder ----
+static int buildNode(Octree& tree,
+                     int start, int count,
+                     int depth,
+                     int leafSize,
+                     int maxDepth)
+{
+    assert(count >= 0);
+
+    // create node
+    int nodeIndex = (int)tree.nodes.size();
+    tree.nodes.push_back({});
+    OctreeNode& node = tree.nodes.back();
+
+    node.start = start;
+    node.count = count;
+    node.children.fill(-1);
+
+    // compute bbox
+    computeBoundingBox(*tree.points, tree.indices,
+                       start, count,
+                       node.bb_min, node.bb_max);
+
+    // base cases: leaf if few points or too deep
+    if (count <= leafSize || depth >= maxDepth) {
+        return nodeIndex;
+    }
+
+    // compute center of bbox
+    float cx = 0.5f * (node.bb_min.x + node.bb_max.x);
+    float cy = 0.5f * (node.bb_min.y + node.bb_max.y);
+    float cz = 0.5f * (node.bb_min.z + node.bb_max.z);
+
+    // first pass: count points per octant
+    int bucketCounts[8] = {0,0,0,0,0,0,0,0};
+
+    for (int i = 0; i < count; ++i) {
+        int idx = tree.indices[start + i];
+        const Point3D& p = (*tree.points)[idx];
+        int oct = classifyOctant(p, cx, cy, cz);
+        bucketCounts[oct]++;
+    }
+
+    // if everything fell into one bucket, don't split (degenerate case)
+    int nonEmptyBuckets = 0;
+    for (int b = 0; b < 8; ++b)
+        if (bucketCounts[b] > 0) nonEmptyBuckets++;
+
+    if (nonEmptyBuckets <= 1) {
+        // avoid infinite recursion / super-unbalanced tree
+        return nodeIndex;
+    }
+
+    // second pass: prefix sums for offsets
+    int bucketOffsets[8];
+    int offset = 0;
+    for (int b = 0; b < 8; ++b) {
+        bucketOffsets[b] = offset;
+        offset += bucketCounts[b];
+    }
+    assert(offset == count);
+
+    // third pass: reorder indices into temp[count] by octant
+    std::vector<int> temp(count);
+    int cursor[8];
+    for (int b = 0; b < 8; ++b)
+        cursor[b] = bucketOffsets[b];
+
+    for (int i = 0; i < count; ++i) {
+        int idx = tree.indices[start + i];
+        const Point3D& p = (*tree.points)[idx];
+        int oct = classifyOctant(p, cx, cy, cz);
+        temp[cursor[oct]++] = idx;
+    }
+
+    // copy back into tree.indices in [start, start+count)
+    for (int i = 0; i < count; ++i) {
+        tree.indices[start + i] = temp[i];
+    }
+
+    // recursively build children for non-empty buckets
+    for (int b = 0; b < 8; ++b) {
+        int childCount = bucketCounts[b];
+        if (childCount == 0) {
+            node.children[b] = -1;
+            continue;
+        }
+        int childStart = start + bucketOffsets[b];
+        node.children[b] = buildNode(tree,
+                                     childStart,
+                                     childCount,
+                                     depth + 1,
+                                     leafSize,
+                                     maxDepth);
+    }
+
+    return nodeIndex;
+}
+
+// ---- public entry point ----
 Octree buildOctree(const std::vector<Point3D>& points,
                    int leafSize,
                    int maxDepth)
@@ -69,97 +146,18 @@ Octree buildOctree(const std::vector<Point3D>& points,
         tree.indices[i] = i;
     }
 
-    if (points.empty()) {
-        tree.root = -1;
-        return tree;
-    }
-
     tree.nodes.clear();
-    tree.nodes.reserve(16);
-    tree.nodes.push_back({});
-    tree.root = 0;
-
-    OctreeNode& root = tree.nodes[0];
-    root.start = 0;
-    root.count = (int)points.size();
-    root.children.fill(-1);
-
-    computeBoundingBox(points, tree.indices,
-                       root.start, root.count,
-                       root.bb_min, root.bb_max);
-
-    // if too few points or maxDepth == 0, keep as leaf
-    if (root.count <= leafSize || maxDepth <= 0) {
-        return tree;
+    if (!points.empty()) {
+        tree.nodes.reserve(points.size() * 2);  // rough guess
+        tree.root = buildNode(tree,
+                              /*start=*/0,
+                              /*count=*/(int)points.size(),
+                              /*depth=*/0,
+                              leafSize,
+                              maxDepth);
+    } else {
+        tree.root = -1;
     }
-
-    // compute center of bbox
-    float cx = 0.5f * (root.bb_min.x + root.bb_max.x);
-    float cy = 0.5f * (root.bb_min.y + root.bb_max.y);
-    float cz = 0.5f * (root.bb_min.z + root.bb_max.z);
-
-    // first pass: count points per octant
-    int bucketCounts[8] = {0,0,0,0,0,0,0,0};
-
-    for (int i = 0; i < root.count; ++i) {
-        int idx = tree.indices[root.start + i];
-        const Point3D& p = points[idx];
-        int oct = classifyOctant(p, cx, cy, cz);
-        bucketCounts[oct]++;
-    }
-
-    // second pass: prefix sums for offsets
-    int bucketOffsets[8];
-    int offset = 0;
-    for (int b = 0; b < 8; ++b) {
-        bucketOffsets[b] = offset;
-        offset += bucketCounts[b];
-    }
-
-    // third pass: reorder into temp array
-    std::vector<int> temp(root.count);
-    int cursor[8];
-    for (int b = 0; b < 8; ++b)
-        cursor[b] = bucketOffsets[b];
-
-    for (int i = 0; i < root.count; ++i) {
-        int idx = tree.indices[root.start + i];
-        const Point3D& p = points[idx];
-        int oct = classifyOctant(p, cx, cy, cz);
-        temp[cursor[oct]++] = idx;
-    }
-
-    // copy back into tree.indices
-    for (int i = 0; i < root.count; ++i) {
-        tree.indices[root.start + i] = temp[i];
-    }
-
-    // create child nodes for non-empty buckets
-    for (int b = 0; b < 8; ++b) {
-        int childCount = bucketCounts[b];
-        if (childCount == 0) {
-            root.children[b] = -1;
-            continue;
-        }
-        int childStart = root.start + bucketOffsets[b];
-
-        int childIndex = (int)tree.nodes.size();
-        tree.nodes.push_back({});
-        OctreeNode& child = tree.nodes.back();
-        child.start = childStart;
-        child.count = childCount;
-        child.children.fill(-1);
-
-        computeBoundingBox(points, tree.indices,
-                           child.start, child.count,
-                           child.bb_min, child.bb_max);
-
-        root.children[b] = childIndex;
-    }
-
     return tree;
 }
-
-
-
 

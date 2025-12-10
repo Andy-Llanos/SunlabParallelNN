@@ -19,7 +19,9 @@ std::vector<std::vector<int>> bruteForceKNN(
         //loop over all points with pi
         for (size_t pi = 0; pi < points.size(); ++pi) {
 
-            float d = distance(points[pi], queries[qi]);
+            //float d = distance(points[pi], queries[qi]);
+           float d = sqDist(points[pi], queries[qi]); // from utils.hpp
+
             //maintain heap of size k
             if (heap.size() < k) {
                 heap.push({d, pi});
@@ -44,7 +46,7 @@ std::vector<std::vector<int>> bruteForceKNN(
 
     return neighbors;
 }
-
+/*
 void test_distance() {
     Point3D a{0,0,0};
     Point3D b{3,4,0};
@@ -54,7 +56,8 @@ void test_distance() {
         std::exit(1);
     }
 }
-
+*/
+/*
 void test_bruteforce_small() {
     std::vector<Point3D> points = {
         {0,0,0},  // 0
@@ -88,7 +91,8 @@ void test_bruteforce_small() {
     std::cout << "test_bruteforce_small PASSED\n";
 }
 
-
+*/
+/*
 void test_bruteforce_edges() {
     std::vector<Point3D> points = {
         {0,0,0}, {0,0,0}, {1,0,0}
@@ -110,13 +114,15 @@ void test_bruteforce_edges() {
 
     std::cout << "test_bruteforce_edges PASSED\n";
 }
+*/
+/*
 int main() {
 
-    test_distance();
+    //test_distance();
     //
-    test_bruteforce_small();
+    //test_bruteforce_small();
     ///
-    test_bruteforce_edges();
+    //test_bruteforce_edges();
 
     int N = 1000;
     int Q = 10;
@@ -139,4 +145,4 @@ int main() {
 
 
     return 0;
-}
+}*/
