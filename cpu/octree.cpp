@@ -1,8 +1,15 @@
-#include "octree.hpp"
 #include <limits>
 #include <cassert>
 #include <iostream>
 #include <random>
+#include <mutex>          
+#define TBB_PREVIEW_GLOBAL_CONTROL 1
+#include <tbb/parallel_for.h>
+
+#include "octree.hpp"
+
+static std::mutex g_nodeAllocMutex;
+
 // ---- helper: compute bbox of points[indices[start..start+count)) ----
 static void computeBoundingBox(const std::vector<Point3D>& pts,
                                const std::vector<int>& indices,
@@ -40,14 +47,19 @@ static int buildNode(Octree& tree,
                      int start, int count,
                      int depth,
                      int leafSize,
-                     int maxDepth)
+                     int maxDepth,
+                     bool parallelRoot)
 {
     assert(count >= 0);
 
-    // create node
-    int nodeIndex = (int)tree.nodes.size();
-    tree.nodes.push_back({});
-    OctreeNode& node = tree.nodes.back();
+    int nodeIndex;
+    {
+        std::lock_guard<std::mutex> lock(g_nodeAllocMutex);
+        nodeIndex = (int)tree.nodes.size();
+        tree.nodes.push_back({});
+    }
+    OctreeNode& node = tree.nodes[nodeIndex];
+
 
     node.start = start;
     node.count = count;
@@ -116,48 +128,100 @@ static int buildNode(Octree& tree,
     }
 
     // recursively build children for non-empty buckets
-    for (int b = 0; b < 8; ++b) {
-        int childCount = bucketCounts[b];
-        if (childCount == 0) {
-            node.children[b] = -1;
-            continue;
+    if (depth == 0 && parallelRoot) {
+        // Innovation 1: parallelize the 8 root subtrees
+        tbb::parallel_for(0, 8, [&](int b) {
+            int childCount = bucketCounts[b];
+            if (childCount == 0) {
+                node.children[b] = -1;
+                return;
+            }
+            int childStart = start + bucketOffsets[b];
+            node.children[b] = buildNode(tree,
+                                        childStart,
+                                        childCount,
+                                        depth + 1,
+                                        leafSize,
+                                        maxDepth,
+                                        /*parallelRoot=*/false);
+        });
+    } else {
+        // deeper levels or seq build: sequential children
+        for (int b = 0; b < 8; ++b) {
+            int childCount = bucketCounts[b];
+            if (childCount == 0) {
+                node.children[b] = -1;
+                continue;
+            }
+            int childStart = start + bucketOffsets[b];
+            node.children[b] = buildNode(tree,
+                                        childStart,
+                                        childCount,
+                                        depth + 1,
+                                        leafSize,
+                                        maxDepth,
+                                        parallelRoot);
         }
-        int childStart = start + bucketOffsets[b];
-        node.children[b] = buildNode(tree,
-                                     childStart,
-                                     childCount,
-                                     depth + 1,
-                                     leafSize,
-                                     maxDepth);
     }
+
+
 
     return nodeIndex;
 }
 
-// ---- public entry point ----
-Octree buildOctree(const std::vector<Point3D>& points,
-                   int leafSize,
-                   int maxDepth)
-{
-    Octree tree;
-    tree.points = &points;
-    tree.indices.resize(points.size());
-    for (int i = 0; i < (int)points.size(); ++i) {
-        tree.indices[i] = i;
+    // ---- public entry point ----
+    Octree buildOctree_seq(const std::vector<Point3D>& points,
+                        int leafSize,
+                        int maxDepth)
+    {
+        Octree tree;
+        tree.points = &points;
+        tree.indices.resize(points.size());
+        for (int i = 0; i < (int)points.size(); ++i) {
+            tree.indices[i] = i;
+        }
+
+        tree.nodes.clear();
+        if (!points.empty()) {
+            tree.nodes.reserve(points.size() * 2);
+            tree.root = buildNode(tree,
+                                /*start=*/0,
+                                /*count=*/(int)points.size(),
+                                /*depth=*/0,
+                                leafSize,
+                                maxDepth,
+                                /*parallelRoot=*/false);
+        } else {
+            tree.root = -1;
+        }
+        return tree;
     }
 
-    tree.nodes.clear();
-    if (!points.empty()) {
-        tree.nodes.reserve(points.size() * 2);  // rough guess
-        tree.root = buildNode(tree,
-                              /*start=*/0,
-                              /*count=*/(int)points.size(),
-                              /*depth=*/0,
-                              leafSize,
-                              maxDepth);
-    } else {
-        tree.root = -1;
+    Octree buildOctree(const std::vector<Point3D>& points,
+                                int leafSize,
+                                int maxDepth)
+    {
+        Octree tree;
+        tree.points = &points;
+        tree.indices.resize(points.size());
+        for (int i = 0; i < (int)points.size(); ++i) {
+            tree.indices[i] = i;
+        }
+
+        tree.nodes.clear();
+        if (!points.empty()) {
+            tree.nodes.reserve(points.size() * 2);
+            tree.root = buildNode(tree,
+                                /*start=*/0,
+                                /*count=*/(int)points.size(),
+                                /*depth=*/0,
+                                leafSize,
+                                maxDepth,
+                                /*parallelRoot=*/true);
+        } else {
+            tree.root = -1;
+        }
+        return tree;
     }
-    return tree;
-}
+
 

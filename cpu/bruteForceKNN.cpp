@@ -1,9 +1,12 @@
-#include "utils.hpp"
 #include <vector>
 #include <queue>
 #include <cmath>
-#include <random>
 #include <iostream>
+#include <random>
+
+#include "utils.hpp"
+
+
 //Andy llanos
 //cse 375 final project
 

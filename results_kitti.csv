@@ -1,0 +1,10 @@
+dataset,N,Q,k,leafSize,maxDepth,method,threads,blockSize,time_ms,speedup_vs_cpuBF,recall
+data/kitti/velodyne/000000.bin,100000,2000,16,0,0,cpu_bf,1,0,1362.37,1,1
+data/kitti/velodyne/000000.bin,100000,2000,16,32,10,cpu_octree_seq,1,0,62.7637,21.7064,0.900688
+data/kitti/velodyne/000000.bin,100000,2000,16,32,10,cpu_octree_tbb,8,0,5.17052,263.489,0.195906
+data/kitti/velodyne/000000.bin,100000,2000,16,0,0,gpu_bf,0,256,112.572,12.1022,1
+dataset,N,Q,k,leafSize,maxDepth,method,threads,blockSize,time_ms,speedup_vs_cpuBF,recall
+data/kitti/velodyne/000001.bin,80000,1500,16,0,0,cpu_bf,1,0,813.651,1,1
+data/kitti/velodyne/000001.bin,80000,1500,16,32,10,cpu_octree_seq,1,0,43.1911,18.8384,0.956792
+data/kitti/velodyne/000001.bin,80000,1500,16,32,10,cpu_octree_tbb,8,0,3.04311,267.375,0.234083
+data/kitti/velodyne/000001.bin,80000,1500,16,0,0,gpu_bf,0,256,94.6343,8.59785,1

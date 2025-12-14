@@ -26,6 +26,9 @@ struct Octree {
     std::vector<int> indices;                      // permutation of [0..N-1], global indez array for points
     std::vector<OctreeNode> nodes;                 // flat array of nodes
     int root = -1; 
+
+    //protect nodes vector during parallel build!
+
 };
 
 /////build octree(points, leaf_size, maxdepth)
@@ -33,5 +36,10 @@ struct Octree {
 //parition points among children
 ///partition into 8 octants
 ///recursively call buildNode()
+////SEQUENTIAL OCTREE CONSTRUCTION
+
+Octree buildOctree_seq(const std::vector<Point3D>& points,int leafSize,int maxDepth);
+
+///PARALLEL OCTREE CONSTURCTION
 Octree buildOctree(const std::vector<Point3D>& points,int leaf_size,int maxdepth);
 
