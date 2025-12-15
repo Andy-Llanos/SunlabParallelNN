@@ -1,3 +1,5 @@
+// Brute force KNN implementation
+// This is the ground truth for checking correctness of octree version
 #include <vector>
 #include <queue>
 #include <cmath>
@@ -7,34 +9,39 @@
 #include "utils.hpp"
 
 
-//Andy llanos
-//cse 375 final project
+// Andy Llanos
+// CSE 375 Final Project - ParallelNN
 
+// Brute force k-nearest neighbor search
+// Just checks every single point for every query (slow but correct)
+// Time complexity: O(N * Q * log k) where N = points, Q = queries
 std::vector<std::vector<int>> bruteForceKNN(
     const std::vector<Point3D>& points,
     const std::vector<Point3D>& queries,
     int k){
     std::vector<std::vector<int>> neighbors(queries.size());
-    ///will iterate over each queries with qi
+
+    // will iterate over each queries with qi
     for (size_t qi = 0; qi < queries.size(); ++qi) {
         // max-heap for k smallest distances
+        // heap stores (distance, pointIndex) pairs
         std::priority_queue<std::pair<float,int>> heap;
-        //loop over all points with pi
+
+        // loop over all points with pi
         for (size_t pi = 0; pi < points.size(); ++pi) {
+            // compute squared distance (dont need sqrt, just comparing)
+            float d = sqDist(points[pi], queries[qi]); // from utils.hpp
 
-            //float d = distance(points[pi], queries[qi]);
-           float d = sqDist(points[pi], queries[qi]); // from utils.hpp
-
-            //maintain heap of size k
-            if (heap.size() < k) {
-                heap.push({d, pi});
+            // maintain heap of size k (keep k closest points)
+            if (heap.size() < (size_t)k) {
+                heap.push({d, (int)pi});
             } else if (d < heap.top().first) {
-                heap.pop();
-                heap.push({d, pi});
+                heap.pop();  // remove worst (farthest)
+                heap.push({d, (int)pi});  // add this one
             }
         }
 
-        // dump results from heap, after scanning all points we extract indices 
+        // dump results from heap, after scanning all points we extract indices
         std::vector<int> temp;
 
         while (!heap.empty()) {
@@ -42,9 +49,8 @@ std::vector<std::vector<int>> bruteForceKNN(
             heap.pop();
         }
 
-        //reverse to heaver nearest first order
+        // reverse to have nearest first order (heap gives us worst first)
         neighbors[qi].assign(temp.rbegin(), temp.rend());
-
     }
 
     return neighbors;
