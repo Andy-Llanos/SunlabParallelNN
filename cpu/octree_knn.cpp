@@ -80,6 +80,19 @@ std::vector<std::vector<int>> octreeKNN(
     }
     return neighbors;
 }
+/////for testing in keyframe bench:
+std::vector<std::vector<int>> octreeKNN_seq(
+    const Octree& tree,
+    const std::vector<Point3D>& queries,
+    int k,
+    int maxNodesVisited)
+{
+    std::vector<std::vector<int>> neighbors(queries.size());
+    for (int qi = 0; qi < (int)queries.size(); ++qi) {
+        neighbors[qi] = knn_single_query(tree, queries[qi], k, maxNodesVisited);
+    }
+    return neighbors;
+}
 
 
 

@@ -11,6 +11,12 @@ std::vector<std::vector<int>> octreeKNN(
     const std::vector<Point3D>& queries,
     int k);
 
+////octree seq for testing:
+std::vector<std::vector<int>> octreeKNN_seq(
+    const Octree& tree,
+    const std::vector<Point3D>& queries,
+    int k,
+    int maxNodesVisited);
 
 // TBB-parallel version
 std::vector<std::vector<int>> octreeKNN_parallel_tbb(

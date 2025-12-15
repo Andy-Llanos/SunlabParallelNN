@@ -1,0 +1,8 @@
+N,leafSize,maxDepth,build_seq_ms,build_par8_ms,speedup
+200000,32,10,9.28589,8.55204,1.08581
+N,leafSize,maxDepth,build_seq_ms,build_par8_ms,speedup
+100000,32,10,3.34626,2.45555,1.36273
+N,leafSize,maxDepth,build_seq_ms,build_par8_ms,speedup
+100000,32,10,4.17172,3.31405,1.2588
+N,leafSize,maxDepth,build_seq_ms,build_par8_ms,speedup
+1000000,32,10,48.1869,33.8755,1.42247
